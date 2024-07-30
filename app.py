@@ -4,14 +4,17 @@ import re
 from langchain_openai import OpenAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
+from dotenv import load_dotenv
+import os
 
 app = Flask(__name__)
 email_template = ""
 history = []
 sections = []
 
-# Set your OpenAI API key
-openai.api_key = ' '
+# Load environment variables from .env file
+load_dotenv()
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # Define the LangChain prompt template
 prompt_template = PromptTemplate(
