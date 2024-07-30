@@ -3,134 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <title>Email Template Generator</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin-top: 20px;
-        }
-        h1, h2 {
-            color: #333;
-        }
-        .input-group {
-            margin: 20px 0;
-        }
-        #template-display {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            background-color: white;
-            border-radius: 4px;
-            min-height: 150px;
-        }
-        .button-group {
-            display: flex;
-            justify-content: space-between;
-        }
+        body { font-family: Arial, sans-serif; }
+        .header, .footer, .image, .button, .discount, .survey { padding: 20px; text-align: center; }
+        .header { background-color: #f0f0f0; }
+        .footer { background-color: #f0f0f0; }
+        .button { background-color: #4CAF50; color: white; cursor: pointer; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .table th { background-color: #f2f2f2; }
+        .discount { background-color: #ffcc00; padding: 20px; margin: 20px 0; }
+        .survey { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
+        .submit-button { background-color: #4CAF50; color: white; padding: 10px; text-align: center; display: inline-block; margin: 10px 0; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
-            <a class="navbar-brand" href="#">Email Template Generator</a>
-        </nav>
-        <div class="row mt-4">
-            <div class="col-md-8 offset-md-2">
-                <h1 class="mb-4">Email Template Generator</h1>
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control" id="prompt" placeholder="Enter your prompt here">
-                    <div class="input-group-append">
-                        <button class="btn btn-success" onclick="updateTemplate()">Submit</button>
-                    </div>
-                </div>
-                <div class="alert alert-danger" id="error-message" role="alert" style="display:none;"></div>
-                <div class="button-group mb-4">
-                    <button class="btn btn-warning" onclick="resetTemplate()">Reset Template</button>
-                    <button class="btn btn-secondary" onclick="undoTemplate()">Undo</button>
-                </div>
-                <div id="template-display" class="card mt-4">
-                    <div class="card-body"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bootstrap JS and dependencies -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-
+    <h1>Email Template Generator</h1>
+    <input type="text" id="prompt" placeholder="Enter your prompt here">
+    <button onclick="submitPrompt()">Submit</button>
+    <button onclick="resetTemplate()">Reset Template</button>
+    <button onclick="undo()">Undo</button>
+    <div id="output"></div>
     <script>
-        function updateTemplate() {
+        function submitPrompt() {
             const prompt = document.getElementById('prompt').value;
-            const errorMessage = document.getElementById('error-message');
-            errorMessage.style.display = 'none';
-            errorMessage.textContent = '';
-
-            if (!prompt) {
-                errorMessage.textContent = 'Prompt cannot be empty';
-                errorMessage.style.display = 'block';
-                return;
-            }
-
             fetch('/update-template', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ prompt: prompt }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    errorMessage.textContent = data.error;
-                    errorMessage.style.display = 'block';
+                    alert(data.error);
                 } else {
-                    document.querySelector('#template-display .card-body').innerHTML = data.template;
-                    document.getElementById('prompt').value = '';
+                    document.getElementById('output').innerHTML = data.template;
                 }
-            })
-            .catch(error => {
-                errorMessage.textContent = 'An error occurred. Please try again.';
-                errorMessage.style.display = 'block';
             });
         }
 
         function resetTemplate() {
-            fetch('/reset-template', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
+            fetch('/reset-template', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
-                document.querySelector('#template-display .card-body').innerHTML = data.template;
-            })
-            .catch(error => {
-                const errorMessage = document.getElementById('error-message');
-                errorMessage.textContent = 'An error occurred. Please try again.';
-                errorMessage.style.display = 'block';
+                document.getElementById('output').innerHTML = data.template;
             });
         }
 
-        function undoTemplate() {
-            fetch('/undo', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
+        function undo() {
+            fetch('/undo', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
-                document.querySelector('#template-display .card-body').innerHTML = data.template;
-            })
-            .catch(error => {
-                const errorMessage = document.getElementById('error-message');
-                errorMessage.textContent = 'An error occurred. Please try again.';
-                errorMessage.style.display = 'block';
+                document.getElementById('output').innerHTML = data.template;
             });
         }
     </script>
