@@ -2,61 +2,124 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Template Generator</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        body { font-family: Arial, sans-serif; }
-        .header, .footer, .image, .button, .discount, .survey { padding: 20px; text-align: center; }
-        .header { background-color: #f0f0f0; }
-        .footer { background-color: #f0f0f0; }
-        .button { background-color: #4CAF50; color: white; cursor: pointer; }
-        .table { width: 100%; border-collapse: collapse; }
-        .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .table th { background-color: #f2f2f2; }
-        .discount { background-color: #ffcc00; padding: 20px; margin: 20px 0; }
-        .survey { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
-        .submit-button { background-color: #4CAF50; color: white; padding: 10px; text-align: center; display: inline-block; margin: 10px 0; cursor: pointer; }
+        body {
+            padding: 20px;
+        }
+        .container {
+            max-width: 100%;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
-    <h1>Email Template Generator</h1>
-    <input type="text" id="prompt" placeholder="Enter your prompt here">
-    <button onclick="submitPrompt()">Submit</button>
-    <button onclick="resetTemplate()">Reset Template</button>
-    <button onclick="undo()">Undo</button>
-    <div id="output"></div>
+    <div class="container">
+        <h1>Email Template Generator</h1>
+        <form id="template-form">
+            <div class="form-group">
+                <label for="instruction">Enter your instruction here:</label>
+                <textarea class="form-control" id="instruction" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+            <button type="button" class="btn btn-secondary" id="reset-template">Reset Template</button>
+            <button type="button" class="btn btn-secondary" id="undo">Undo</button>
+        </form>
+        <form id="apply-changes-form" style="margin-top: 20px;">
+            <div class="form-group">
+                <label for="change-instruction">Enter changes here:</label>
+                <textarea class="form-control" id="change-instruction" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Apply Changes</button>
+        </form>
+        <div id="result"></div>
+    </div>
+
     <script>
-        function submitPrompt() {
-            const prompt = document.getElementById('prompt').value;
-            fetch('/update-template', {
+        let currentConversationId = null;
+
+        document.getElementById('template-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const instruction = document.getElementById('instruction').value;
+            const response = await fetch('/generate-html', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: prompt })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    document.getElementById('output').innerHTML = data.template;
-                }
+                body: JSON.stringify({ instruction, conversation_id: currentConversationId })
             });
+            const result = await response.json();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(result.html, 'text/html');
+            const htmlContent = doc.body.innerHTML;
+            document.getElementById('result').innerHTML = htmlContent;
+            if (!currentConversationId) {
+                currentConversationId = result.conversation_id;
+            }
+            loadConversations();
+        });
+
+        document.getElementById('apply-changes-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const instruction = document.getElementById('change-instruction').value;
+            const response = await fetch('/generate-html', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ instruction, conversation_id: currentConversationId })
+            });
+            const result = await response.json();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(result.html, 'text/html');
+            const htmlContent = doc.body.innerHTML;
+            document.getElementById('result').innerHTML = htmlContent;
+            loadConversations();
+        });
+
+        document.getElementById('reset-template').addEventListener('click', async () => {
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('instruction').value = '';
+            document.getElementById('change-instruction').value = '';
+            currentConversationId = null;
+            await fetch('/reset-template', { method: 'POST' });
+        });
+
+        document.getElementById('undo').addEventListener('click', async () => {
+            const response = await fetch('/undo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversation_id: currentConversationId })
+            });
+            const result = await response.json();
+            document.getElementById('result').innerHTML = result.html;
+        });
+
+        async function loadConversations() {
+            const response = await fetch('/get-conversations');
+            const result = await response.json();
+            const conversationsContainer = document.createElement('div');
+            result.conversations.forEach(convo => {
+                const convoElement = document.createElement('div');
+                convoElement.textContent = convo.name;
+                convoElement.addEventListener('click', async () => {
+                    currentConversationId = convo.id;
+                    const response = await fetch(`/get-conversation?conversation_id=${convo.id}`);
+                    const result = await response.json();
+                    document.getElementById('result').innerHTML = result.html;
+                });
+                conversationsContainer.appendChild(convoElement);
+            });
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.innerHTML = '';
+            sidebar.appendChild(conversationsContainer);
         }
 
-        function resetTemplate() {
-            fetch('/reset-template', { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('output').innerHTML = data.template;
-            });
-        }
-
-        function undo() {
-            fetch('/undo', { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('output').innerHTML = data.template;
-            });
-        }
+        document.addEventListener('DOMContentLoaded', loadConversations);
     </script>
 </body>
 </html>
