@@ -1,0 +1,105 @@
+from flask import Flask, render_template, request, jsonify
+import openai
+from langchain.prompts.chat import ChatPromptTemplate
+from langchain.chains import LLMChain
+from langchain_openai import ChatOpenAI
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from dotenv import load_dotenv
+import os
+
+app = Flask(__name__)
+email_template = ""
+history = []
+
+# Set your OpenAI API key
+load_dotenv()
+openai.api_key = os.getenv('OPENAI_API_KEY')
+
+llm = ChatOpenAI(model="gpt-4o")
+
+def generate_html_content(prompt, chat_history):
+    chat_prompt = ChatPromptTemplate.from_messages([
+        SystemMessage(content="You are an AI assistant that generates HTML elements based on user prompts."),
+        HumanMessage(content="{prompt}")
+    ])
+
+    chain = LLMChain(
+        llm=llm,
+        prompt=chat_prompt,
+        verbose=True
+    )
+
+    response = chain.invoke({"prompt": prompt, "chat_history": chat_history})
+    response_text = response['text'].strip()
+
+    # Ensure response format is 'section_type: content'
+    if ':' not in response_text:
+        return "error", "Invalid response format. Expected 'section_type: content'"
+
+    section_type, content = response_text.split(":", 1)
+    return section_type.strip().lower(), content.strip()
+
+def generate_html_section(section_type, content):
+    if section_type == "header":
+        return f"<div class='header'><h1>{content}</h1></div>"
+    elif section_type == "footer":
+        return f"<div class='footer'><p>{content}</p></div>"
+    elif section_type == "image":
+        return f'<div class="image"><img src="{content}" alt="Image"></div>'
+    elif section_type == "button":
+        return f'<div class="button"><a href="{content}" style="color: white; text-decoration: none;">{content}</a></div>'
+    elif section_type == "table":
+        rows = content.split(";")
+        headers = rows[0].split(", ")
+        table_html = "<table><tr>" + "".join([f"<th>{header}</th>" for header in headers]) + "</tr>"
+        for row in rows[1:]:
+            cells = row.split(", ")
+            table_html += "<tr>" + "".join([f"<td>{cell}</td>" for cell in cells]) + "</tr>"
+        table_html += "</table>"
+        return table_html
+    else:
+        return f"<div class='{section_type}'><p>{content}</p></div>"
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/update-template', methods=['POST'])
+def update_template():
+    global email_template, history
+    data = request.json
+    prompt = data.get('prompt')
+    if not prompt:
+        return jsonify({"error": "No prompt provided"}), 400
+
+    chat_history = history.copy()
+    history.append(prompt)
+
+    try:
+        section_type, content = generate_html_content(prompt, chat_history)
+        if section_type == "error":
+            return jsonify({"error": content}), 400
+
+        generated_html = generate_html_section(section_type, content)
+        email_template += generated_html
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(template=email_template)
+
+@app.route('/reset-template', methods=['POST'])
+def reset_template():
+    global email_template, history
+    history.append(email_template)
+    email_template = ""
+    return jsonify(template=email_template)
+
+@app.route('/undo', methods=['POST'])
+def undo():
+    global email_template, history
+    if history:
+        email_template = history.pop()
+    return jsonify(template=email_template)
+
+if __name__ == '__main__':
+    app.run(debug=True)
